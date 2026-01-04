@@ -22,44 +22,35 @@ async function askGemini() {
     const apiKey = document.getElementById("apiKey").value.trim();
     const question = document.getElementById("question").value.trim();
 
-    if (!apiKey) {
-        alert("Please paste your Gemini API key.");
-        return;
-    }
-    if (!excelText) {
-        alert("Please upload an Excel file first.");
-        return;
-    }
+    if (!apiKey) return alert("Paste Gemini API key");
+    if (!excelText) return alert("Upload Excel first");
     if (!question) return;
 
     addUser(question);
     document.getElementById("question").value = "";
 
     const prompt = `
-You are a senior QA analyst and product reviewer.
+You are a senior QA analyst.
 
-Below is Excel data uploaded by the user (bug reports / test cases / analysis sheet).
-
-Analyze ALL rows carefully and answer the user's question clearly and professionally.
-If the question asks for lists, return structured bullet points.
-If it asks for expected/actual results, extract them accurately.
+Analyze the Excel data below and answer clearly.
 
 Excel Data:
-${excelText}
+${excelText.slice(0, 12000)}
 
-User Question:
+Question:
 ${question}
 `;
 
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     contents: [
                         {
+                            role: "user",
                             parts: [{ text: prompt }]
                         }
                     ]
@@ -67,17 +58,28 @@ ${question}
             }
         );
 
-        const data = await response.json();
-        const answer =
-            data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-            "No response received from Gemini.";
+        const data = await res.json();
+        console.log("Gemini raw response:", data); // 🔴 DEBUG
+
+        if (data.error) {
+            addBot("Gemini API Error: " + data.error.message);
+            return;
+        }
+
+        const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!answer) {
+            addBot("Gemini returned empty response. Try a smaller Excel or simpler question.");
+            return;
+        }
 
         addBot(answer.replace(/\n/g, "<br>"));
     } catch (err) {
-        addBot("Error talking to Gemini API.");
         console.error(err);
+        addBot("Network or API failure. Check console.");
     }
 }
+
 
 function addUser(text) {
     document.getElementById("chat").innerHTML +=
