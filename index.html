@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Excel Analyzer Chatbot (Gemini)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h2>🤖 Excel Analyzer Chatbot (Gemini AI)</h2>
+
+<div class="controls">
+    <input id="apiKey" type="password" placeholder="Paste Gemini API Key here" />
+    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+</div>
+
+<div id="chat"></div>
+
+<div class="input-box">
+    <input id="question" placeholder="Ask anything about the Excel (bugs, UI, expected, actual...)" />
+    <button onclick="askGemini()">Ask</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
