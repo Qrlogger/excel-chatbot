@@ -1,99 +1,80 @@
+import { GoogleGenAI } from "https://esm.run/@google/genai";
+
 let excelText = "";
+let ai = null;
 
+// Excel upload
 document.getElementById("fileInput").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const workbook = XLSX.read(evt.target.result, { type: "binary" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        const workbook = XLSX.read(evt.target.result, { type: "binary" });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    excelText = json
+      .map((row, i) => `Row ${i + 1}: ${JSON.stringify(row)}`)
+      .join("\n");
 
-        // Convert to readable text for Gemini
-        excelText = json.map((row, i) => `Row ${i + 1}: ${JSON.stringify(row)}`).join("\n");
-
-        addBot("Excel uploaded successfully. Ask me anything about it.");
-    };
-    reader.readAsBinaryString(file);
+    addBot("Excel uploaded. Ask your question.");
+  };
+  reader.readAsBinaryString(e.target.files[0]);
 });
 
-async function askGemini() {
-    const apiKey = document.getElementById("apiKey").value.trim();
-    const question = document.getElementById("question").value.trim();
+// Ask Gemini
+document.getElementById("askBtn").addEventListener("click", async () => {
+  const apiKey = document.getElementById("apiKey").value.trim();
+  const question = document.getElementById("question").value.trim();
 
-    if (!apiKey) return alert("Paste Gemini API key");
-    if (!excelText) return alert("Upload Excel first");
-    if (!question) return;
+  if (!apiKey) return alert("Paste Gemini API key");
+  if (!excelText) return alert("Upload Excel first");
+  if (!question) return;
 
-    addUser(question);
-    document.getElementById("question").value = "";
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey });
+  }
 
-    const prompt = `
+  addUser(question);
+  document.getElementById("question").value = "";
+
+  const prompt = `
 You are a senior QA analyst.
 
-Analyze the Excel data below and answer clearly.
+Analyze the Excel data below and answer clearly and accurately.
 
 Excel Data:
 ${excelText.slice(0, 12000)}
 
-Question:
+User Question:
 ${question}
 `;
 
-    try {
-        const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            role: "user",
-                            parts: [{ text: prompt }]
-                        }
-                    ]
-                })
-            }
-        );
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
 
-        const data = await res.json();
-        console.log("Gemini raw response:", data); // 🔴 DEBUG
+    addBot(response.text.replace(/\n/g, "<br>"));
+  } catch (err) {
+    console.error(err);
+    addBot("Gemini SDK error. Check console.");
+  }
+});
 
-        if (data.error) {
-            addBot("Gemini API Error: " + data.error.message);
-            return;
-        }
-
-        const answer = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!answer) {
-            addBot("Gemini returned empty response. Try a smaller Excel or simpler question.");
-            return;
-        }
-
-        addBot(answer.replace(/\n/g, "<br>"));
-    } catch (err) {
-        console.error(err);
-        addBot("Network or API failure. Check console.");
-    }
-}
-
-
+// Chat helpers
 function addUser(text) {
-    document.getElementById("chat").innerHTML +=
-        `<div class="msg user">You: ${text}</div>`;
-    scrollChat();
+  document.getElementById("chat").innerHTML +=
+    `<div class="msg user">You: ${text}</div>`;
+  scrollChat();
 }
 
 function addBot(text) {
-    document.getElementById("chat").innerHTML +=
-        `<div class="msg bot">Gemini: ${text}</div>`;
-    scrollChat();
+  document.getElementById("chat").innerHTML +=
+    `<div class="msg bot">Gemini: ${text}</div>`;
+  scrollChat();
 }
 
 function scrollChat() {
-    const chat = document.getElementById("chat");
-    chat.scrollTop = chat.scrollHeight;
+  const chat = document.getElementById("chat");
+  chat.scrollTop = chat.scrollHeight;
 }
